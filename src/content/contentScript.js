@@ -1,50 +1,53 @@
 // src/content/contentScript.js - основной контент-скрипт
 // Перенесён из корня
+
 (function() {
 	let lastAppliedToken = null;
+	let lastAppliedAt = 0;
 	function log(...args) { console.debug('[SwaggerToken]', ...args); }
 	function isSwaggerPage() { return document.querySelector('.swagger-ui, #swagger-ui') !== null; }
-	function injectBearer(rawToken) {
+
+	function performLogout(schemes, tokenShort) {
+		if (!(window.ui && window.ui.authActions)) return;
+		const act = window.ui.authActions;
+		if (typeof act.logout !== 'function') return;
+		schemes.forEach(s => { try { act.logout(s); log('logout scheme', s); } catch(e){ log('logout fail', s, e.message); } });
+		// Дополнительно чистим потенциальные поля в DOM модалке
+		const authInputs = document.querySelectorAll('.modal-ux input, [role="dialog"] input');
+		authInputs.forEach(inp => { const v=(inp.getAttribute('name')||'').toLowerCase(); if(v.includes('token')||v.includes('auth')||v.includes('bearer')) inp.value=''; });
+		log('Logout complete for token', tokenShort.slice(0,12)+'…');
+	}
+
+	function performAuthorize(schemes, tokenShort) {
+		if (!(window.ui)) return;
+		const act = window.ui.authActions;
+		if (act && typeof act.authorize === 'function') {
+			schemes.forEach(s => {
+				try { const obj={}; obj[s]={ token: tokenShort }; act.authorize(obj); log('authorize object', s); } catch(e){ }
+				try { const obj2={}; obj2[s]=tokenShort; act.authorize(obj2); log('authorize raw', s); } catch(e){ }
+			});
+		}
+		if (typeof window.ui.preauthorizeApiKey === 'function') {
+			schemes.forEach(s => { try { window.ui.preauthorizeApiKey(s, tokenShort); log('preauthorize', s); } catch(e){} });
+		}
+	}
+
+	async function injectBearer(rawToken) {
 		if (!rawToken) return;
 		const tokenNoPrefix = rawToken.trim().replace(/^Bearer\s+/i, '');
-		// Выполним logout перед переавторизацией, если доступно
-		const possibleSchemes = ['Authorization', 'bearerAuth', 'Bearer', 'BearerAuth'];
-		try {
-			if (window.ui && window.ui.authActions && typeof window.ui.authActions.logout === 'function') {
-				possibleSchemes.forEach(scheme => { try { window.ui.authActions.logout(scheme); } catch(_){} });
-			}
-		} catch(_){}
-		lastAppliedToken = tokenNoPrefix;
-		// После logout авторизуем заново
-		try {
-			if (window.ui && window.ui.authActions && typeof window.ui.authActions.authorize === 'function') {
-				possibleSchemes.forEach(scheme => {
-					try { const o1 = {}; o1[scheme] = { token: tokenNoPrefix }; window.ui.authActions.authorize(o1); } catch(_){}
-					try { const o2 = {}; o2[scheme] = tokenNoPrefix; window.ui.authActions.authorize(o2); } catch(_){}
-				});
-			}
-		} catch(e){ log('authActions.authorize error', e); }
-		try {
-			if (window.ui && typeof window.ui.preauthorizeApiKey === 'function') {
-				possibleSchemes.forEach(scheme => { try { window.ui.preauthorizeApiKey(scheme, tokenNoPrefix); } catch(_){} });
-			}
-		} catch(e){ log('preauthorizeApiKey error', e); }
-		const inputs = document.querySelectorAll('input');
-		inputs.forEach(inp => {
-			const attrs = [inp.getAttribute('placeholder'), inp.getAttribute('aria-label'), inp.getAttribute('name')].map(a => (a||'').toLowerCase());
-			if (attrs.some(v => v.includes('bearer') || v.includes('token') || v.includes('authorization'))) {
-				inp.value = tokenNoPrefix; inp.dispatchEvent(new Event('input', { bubbles:true }));
-			}
-		});
+		const now = Date.now();
+		// Разрешаем повторную авторизацию, если прошло >30 сек или токен другой.
+		const allowReapply = (tokenNoPrefix !== lastAppliedToken) || (now - lastAppliedAt > 30000);
+		if (!allowReapply) { log('Skip reapply (cached recent)'); return; }
+		const schemes = ['bearerAuth','Bearer','BearerAuth','Authorization'];
+		log('Start reauth sequence');
+		try { performLogout(schemes, tokenNoPrefix); } catch(e){ log('performLogout error', e); }
+		// Небольшая задержка, чтобы UI освободил состояния
+		await new Promise(r => setTimeout(r, 200));
+		try { performAuthorize(schemes, tokenNoPrefix); } catch(e){ log('performAuthorize error', e); }
+		// Прямая замена в авторизационной модалке (если открыта)
 		const modal = document.querySelector('.modal-ux, [role="dialog"], .swagger-ui .auth-container');
 		if (modal) {
-			const textInputs = Array.from(modal.querySelectorAll('input[type="text"], input:not([type])')).filter(el => el.offsetParent !== null);
-			if (textInputs.length === 1 && !textInputs[0].value) {
-				textInputs[0].value = tokenNoPrefix; textInputs[0].dispatchEvent(new Event('input', { bubbles:true }));
-			}
-		}
-		openAuthorizeModal().then(modal => {
-			if (!modal) return;
 			modal.querySelectorAll('input').forEach(inp => {
 				const attrs = [inp.getAttribute('placeholder'), inp.getAttribute('aria-label'), inp.getAttribute('name')].map(a => (a||'').toLowerCase());
 				if (attrs.some(v => v.includes('bearer') || v.includes('token') || v.includes('authorization'))) {
@@ -53,8 +56,26 @@
 			});
 			clickButtons(modal, 'authorize');
 			setTimeout(() => clickButtons(modal, 'close'), 500);
+		}
+		// Фолбэк: ищем одиночный текстовый input
+		const plainInputs = document.querySelectorAll('input');
+		plainInputs.forEach(inp => {
+			if (!inp || !inp.isConnected) return;
+			const attrs = [inp.getAttribute('placeholder'), inp.getAttribute('aria-label'), inp.getAttribute('name')].map(a => (a||'').toLowerCase());
+			if (attrs.some(v => v.includes('bearer') || v.includes('token') || v.includes('authorization'))) {
+				try {
+					inp.value = tokenNoPrefix;
+					inp.dispatchEvent(new Event('input', { bubbles:true, cancelable:true }));
+					inp.dispatchEvent(new Event('change', { bubbles:true }));
+					log('Applied token to input');
+				} catch(e) {
+					log('Input dispatch fail', e.message);
+				}
+			}
 		});
-		log('Token injected (bearer)');
+		lastAppliedToken = tokenNoPrefix;
+		lastAppliedAt = now;
+		log('Token injected sequence done');
 	}
 	function requestAndApply() { chrome.runtime.sendMessage({ type:'GET_TOKEN_FOR_URL', url:location.href }, resp => { if (resp && resp.token) injectBearer(resp.token); }); }
 	function init(){ if (!isSwaggerPage()) return; requestAndApply(); }
