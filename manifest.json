@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auto Swagger Token Refresher",
-  "version": "0.0.3",
+  "version": "0.0.3b",
   "description": "Автообновление Bearer токена и подстановка в Swagger UI для выбранных микросервисов.",
   "permissions": ["storage", "tabs", "scripting", "activeTab", "alarms", "notifications"],
   "host_permissions": ["http://*/*", "https://*/*"],
