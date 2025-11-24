@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="UTF-8" />
+	<title>Настройки Auto Swagger Token</title>
+	<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+	<div class="page">
+		<h1>Auto Swagger Token</h1>
+		<div class="card">
+			<h2>Авторизация</h2>
+			<label>Auth Endpoint URL
+				<input id="authEndpoint" type="text" placeholder="https://auth.example.com/token" />
+			</label>
+			<label>Basic Header
+				<input id="basicHeader" type="text" placeholder="Basic xxxx==" />
+			</label>
+			<label>Интервал (мин)
+				<input id="intervalMinutes" type="number" min="1" />
+			</label>
+			<div id="status" class="status"></div>
+			<button id="saveBtn" class="button">Сохранить</button>
+		</div>
+		<div class="card">
+			<h2>Микросервисы</h2>
+			<div id="microservices" class="microservices"></div>
+			<button id="addService" class="button secondary">Добавить сервис</button>
+		</div>
+	</div>
+	<script src="options.js"></script>
+</body>
+</html>

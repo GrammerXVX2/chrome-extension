@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Auto Swagger Token Refresher",
+  "version": "0.0.2",
+  "description": "Автообновление Bearer токена и подстановка в Swagger UI для выбранных микросервисов.",
+  "permissions": ["storage", "tabs", "scripting", "activeTab", "alarms"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "options_page": "src/ui/options.html",
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/content/contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Swagger Token",
+    "default_popup": "src/ui/popup.html"
+  }
+}
