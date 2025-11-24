@@ -2,6 +2,11 @@
 // Перенесён из корня
 
 const DEFAULT_INTERVAL_MINUTES = 9;
+// Жёстко заданные данные репозитория для проверки обновлений
+const UPDATE_REPO_OWNER = 'GrammerXVX2';
+const UPDATE_REPO_NAME = 'chrome-extension';
+const UPDATE_REPO_BRANCH = 'main';
+const UPDATE_CHECK_PERIOD_HOURS = 6; // период фоновой проверки (можно изменить)
 
 async function getSettings() {
 	return new Promise(resolve => {
@@ -92,6 +97,10 @@ function schedule() {
 			chrome.alarms.create('refreshToken', { periodInMinutes: intervalMinutes });
 			refreshAll();
 		});
+		chrome.alarms.clear('checkUpdate', () => {
+			chrome.alarms.create('checkUpdate', { periodInMinutes: Math.max(1, UPDATE_CHECK_PERIOD_HOURS * 60) });
+			checkForExtensionUpdate();
+		});
 	});
 }
 
@@ -102,7 +111,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 		schedule();
 	}
 });
-chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === 'refreshToken') refreshAll(); });
+chrome.alarms.onAlarm.addListener(alarm => { 
+	if (alarm.name === 'refreshToken') refreshAll();
+	if (alarm.name === 'checkUpdate') checkForExtensionUpdate();
+});
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 	if (msg && msg.type === 'GET_TOKEN_FOR_URL' && msg.url) {
@@ -115,4 +127,46 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 		return true;
 	}
 	if (msg && msg.type === 'MANUAL_REFRESH') { refreshAll().then(() => sendResponse({ ok: true })); return true; }
+	if (msg && msg.type === 'GET_UPDATE_STATUS') {
+		chrome.storage.local.get({ updateInfo: {} }, data => {
+			const localVersion = chrome.runtime.getManifest().version;
+			const ui = data.updateInfo || {};
+			sendResponse({ localVersion, remoteVersion: ui.remoteVersion || null, checkedAt: ui.checkedAt || null });
+		});
+		return true;
+	}
+	if (msg && msg.type === 'OPEN_UPDATE_PAGE') {
+		const url = `https://github.com/${UPDATE_REPO_OWNER}/${UPDATE_REPO_NAME}`;
+		chrome.tabs.create({ url });
+		sendResponse({ ok:true });
+		return true;
+	}
+	if (msg && msg.type === 'MANUAL_UPDATE_CHECK') {
+		checkForExtensionUpdate().then(() => sendResponse({ ok:true }));
+		return true;
+	}
 });
+
+async function checkForExtensionUpdate() {
+	const manifestUrl = `https://raw.githubusercontent.com/${UPDATE_REPO_OWNER}/${UPDATE_REPO_NAME}/${UPDATE_REPO_BRANCH}/manifest.json`;
+	try {
+		const resp = await fetch(manifestUrl, { cache: 'no-cache' });
+		if (!resp.ok) return;
+		const remote = await resp.json();
+		const remoteVersion = remote.version;
+		const localVersion = chrome.runtime.getManifest().version;
+		if (remoteVersion && remoteVersion !== localVersion) {
+			chrome.storage.local.set({ updateInfo: { remoteVersion, checkedAt: Date.now() } });
+			try {
+				chrome.notifications.create('extUpdate', {
+					iconUrl: 'assets/icon.png', // предполагаемый ресурс; можно заменить
+					title: 'Доступно обновление',
+					message: `Новая версия ${remoteVersion} (текущая ${localVersion})`,
+					type: 'basic'
+				});
+			} catch(_){}
+		} else {
+			chrome.storage.local.set({ updateInfo: { remoteVersion: null, checkedAt: Date.now() } });
+		}
+	} catch(_){}
+}

@@ -7,9 +7,15 @@
 	function injectBearer(rawToken) {
 		if (!rawToken) return;
 		const tokenNoPrefix = rawToken.trim().replace(/^Bearer\s+/i, '');
-		if (lastAppliedToken === tokenNoPrefix) return;
-		lastAppliedToken = tokenNoPrefix;
+		// Выполним logout перед переавторизацией, если доступно
 		const possibleSchemes = ['Authorization', 'bearerAuth', 'Bearer', 'BearerAuth'];
+		try {
+			if (window.ui && window.ui.authActions && typeof window.ui.authActions.logout === 'function') {
+				possibleSchemes.forEach(scheme => { try { window.ui.authActions.logout(scheme); } catch(_){} });
+			}
+		} catch(_){}
+		lastAppliedToken = tokenNoPrefix;
+		// После logout авторизуем заново
 		try {
 			if (window.ui && window.ui.authActions && typeof window.ui.authActions.authorize === 'function') {
 				possibleSchemes.forEach(scheme => {

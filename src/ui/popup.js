@@ -33,8 +33,37 @@ function manualRefresh() {
     icon.style.display = 'none'; text.textContent = 'Обновить';
   });
 }
+function loadUpdateInfo() {
+  chrome.runtime.sendMessage({ type: 'GET_UPDATE_STATUS' }, info => {
+    const box = document.getElementById('updateInfo');
+    const verBox = document.getElementById('versionInfo');
+    if (!info) { box.innerHTML=''; return; }
+    verBox.textContent = `Версия: ${info.localVersion}`;
+    if (info.remoteVersion && info.remoteVersion !== info.localVersion) {
+      box.innerHTML = `<span style="color:#34d399;">Новая версия ${info.remoteVersion} (текущая ${info.localVersion}) <button id="openUpdate" class="button secondary" style="padding:2px 8px; font-size:11px;">GitHub</button></span>`;
+      const openBtn = document.getElementById('openUpdate');
+      openBtn.addEventListener('click', () => { chrome.runtime.sendMessage({ type: 'OPEN_UPDATE_PAGE' }); });
+    } else {
+      box.textContent = 'Обновлений нет';
+    }
+  });
+}
 window.addEventListener('DOMContentLoaded', () => {
   loadData();
+  loadUpdateInfo();
   document.getElementById('refreshBtn').addEventListener('click', manualRefresh);
   document.getElementById('optionsBtn').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  const checkBtn = document.getElementById('checkUpdateBtn');
+  const originalHTML = checkBtn.innerHTML;
+  checkBtn.addEventListener('click', () => {
+    checkBtn.disabled = true;
+    checkBtn.innerHTML = '<span class="spinner" style="width:14px; height:14px; border-width:2px;"></span>';
+    chrome.runtime.sendMessage({ type: 'MANUAL_UPDATE_CHECK' }, () => {
+      setTimeout(() => {
+        loadUpdateInfo();
+        checkBtn.disabled = false;
+        checkBtn.innerHTML = originalHTML;
+      }, 600);
+    });
+  });
 });
