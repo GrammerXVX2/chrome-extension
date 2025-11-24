@@ -110,3 +110,38 @@ const resp = await fetch(authEndpoint, {
 - Отображение состояния токена и времени обновления через popup.
 - Шифрование секрета.
 
+## Ручное обновление через скрипт
+Вне Chrome Web Store расширение нельзя обновить автоматически, но можно быстро перезаписать файлы из GitHub.
+
+1. Скачайте или скопируйте файл `update-extension.ps1` (он уже в корне проекта).
+2. Либо запустите напрямую командой PowerShell (Developer Mode):
+
+```powershell
+Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/GrammerXVX2/chrome-extension/main/update-extension.ps1' -OutFile update-extension.ps1; powershell -ExecutionPolicy Bypass -File .\update-extension.ps1
+```
+
+Скрипт:
+- Найдёт локальную папку расширения (ищет manifest.json с именем `Auto Swagger Token Refresher`).
+- Сравнит локальную и удалённую версии (`manifest.json`).
+- При наличии новой версии скачает ZIP репозитория, сделает резервную копию во временной директории и перезапишет файлы.
+- Подскажет открыть `chrome://extensions` и нажать Reload.
+
+Запуск с явным путём (если авто-поиск не находит):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\update-extension.ps1 -TargetPath 'C:\path\to\chrome-extension'
+```
+
+Тихий режим (минимум вывода):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\update-extension.ps1 -Silent
+```
+
+Создание .exe (опционально):
+Можно преобразовать скрипт в .exe утилитой PS2EXE:
+```powershell
+Install-Module -Name PS2EXE -Scope CurrentUser
+Invoke-PS2EXE -InputFile .\update-extension.ps1 -OutputFile .\update-extension.exe -NoConsole -IconFile .\assets\icon.ico
+```
+
+> Если после копирования код не виден в Chrome, убедитесь что папка расширения та же, что загружена через "Load unpacked".
+
