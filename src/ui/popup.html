@@ -7,7 +7,12 @@
 </head>
 <body>
 	<div class="popup-wrapper">
-		<h1>Swagger Token</h1>
+		<div class="popup-header">
+			<h1>Swagger Token</h1>
+			<button id="optionsIconBtn" class="icon-button" title="Настройки">
+				⚙️
+			</button>
+		</div>
 		<div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
 			<div id="versionInfo" class="version-info small"></div>
 			<button id="checkUpdateBtn" class="button secondary" style="padding:4px 10px; font-size:12px; line-height:1;">↻</button>
@@ -15,12 +20,11 @@
 		<div id="updateInfo" class="update-info small" style="min-height:16px; margin-bottom:6px;"></div>
 		<div id="services" class="services"></div>
 		<div id="status" class="status-bar"></div>
-		<div class="actions">
-			<button id="refreshBtn" class="button">
+		<div class="actions actions-single">
+			<button id="refreshBtn" class="button button-primary-full">
 				<span id="refreshIcon" class="spinner" style="display:none"></span>
-				<span id="refreshText">Обновить</span>
+				<span id="refreshText">Обновить токен</span>
 			</button>
-			<button id="optionsBtn" class="button secondary">Настройки</button>
 		</div>
 	</div>
 	<script src="popup.js"></script>

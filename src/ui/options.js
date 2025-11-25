@@ -52,6 +52,13 @@ function renderMicroservices(list) {
     row.appendChild(toggleWrap); row.appendChild(nameInput); row.appendChild(txt); row.appendChild(delBtn);
     container.appendChild(row);
   });
+
+  // Показать/скрыть кнопку "Сохранить сервисы" в зависимости от наличия строк
+  const saveServicesBtn = document.getElementById('saveServicesBtn');
+  if (saveServicesBtn) {
+    const hasAny = document.querySelectorAll('.microservice-row').length > 0;
+    saveServicesBtn.style.display = hasAny ? 'inline-flex' : 'none';
+  }
 }
 function collectMicroservices() {
   const rows = document.querySelectorAll('.microservice-row');
@@ -79,15 +86,80 @@ function save() {
     setTimeout(() => status.textContent = '', 1500);
   });
 }
+function saveServices() {
+  const microservices = collectMicroservices();
+  chrome.storage.sync.set({ microservices }, () => {
+    const status = document.getElementById('status');
+    status.textContent = 'Сервисы сохранены';
+    setTimeout(() => status.textContent = '', 1500);
+  });
+}
 function addServiceRow() {
   const existing = document.querySelectorAll('.microservice-row').length;
   const ms = [{ id: existing + 1, name: '', baseUrl: '', active: true }];
   renderMicroservices([...collectMicroservices(), ...ms]);
 }
+function exportConfig() {
+  const authEndpoint = document.getElementById('authEndpoint').value.trim();
+  let basicHeader = document.getElementById('basicHeader').value.trim();
+  if (basicHeader && !basicHeader.toLowerCase().startsWith('basic ')) basicHeader = 'Basic ' + basicHeader;
+  const intervalMinutes = parseInt(document.getElementById('intervalMinutes').value, 10) || 9;
+  const microservices = collectMicroservices();
+  const data = { authEndpoint, basicHeader, intervalMinutes, microservices };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'swagger-token-config.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function importConfigFromFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed || typeof parsed !== 'object') return;
+      const authEndpoint = (parsed.authEndpoint || '').trim();
+      const basicHeader = (parsed.basicHeader || '').trim();
+      const intervalMinutes = parseInt(parsed.intervalMinutes, 10) || 9;
+      const microservices = Array.isArray(parsed.microservices) ? parsed.microservices : [];
+      // Обновляем форму
+      document.getElementById('authEndpoint').value = authEndpoint;
+      document.getElementById('basicHeader').value = basicHeader;
+      document.getElementById('intervalMinutes').value = intervalMinutes;
+      renderMicroservices(microservices);
+      // Сохраняем в storage
+      chrome.storage.sync.set({ authEndpoint, basicHeader, intervalMinutes, microservices }, () => {
+        const status = document.getElementById('status');
+        status.textContent = 'Конфиг загружен';
+        setTimeout(() => status.textContent = '', 2000);
+      });
+    } catch (_) {
+      const status = document.getElementById('status');
+      status.textContent = 'Ошибка чтения конфига';
+      setTimeout(() => status.textContent = '', 2500);
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
 window.addEventListener('DOMContentLoaded', () => {
   load();
   document.getElementById('saveBtn').addEventListener('click', save);
   document.getElementById('addService').addEventListener('click', addServiceRow);
+  document.getElementById('saveServicesBtn').addEventListener('click', saveServices);
+  document.getElementById('exportConfigBtn').addEventListener('click', exportConfig);
+  const importBtn = document.getElementById('importConfigBtn');
+  const importFile = document.getElementById('importConfigFile');
+  importBtn.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', () => {
+    if (importFile.files && importFile.files[0]) {
+      importConfigFromFile(importFile.files[0]);
+      importFile.value = '';
+    }
+  });
 });
 async function discoverServiceName(baseUrl) {
   try {

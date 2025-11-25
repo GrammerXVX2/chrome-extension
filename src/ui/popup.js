@@ -16,7 +16,8 @@ function loadData() {
         const tokenInfo = localData.tokenData[ms.baseUrl];
         const el = document.createElement('div');
         el.className = 'service-item fade-in ' + (tokenInfo ? 'active' : '');
-        el.innerHTML = `\n          <div>\n            <div class="service-name">${ms.name || ms.baseUrl}</div>\n            <div class="service-time">Обновлено: ${formatTime(tokenInfo && tokenInfo.fetchedAt)}</div>\n          </div>\n          <div class="badge ${tokenInfo ? '' : 'inactive'}">${tokenInfo ? 'TOKEN' : '—'}</div>\n        `;
+        const updatedText = tokenInfo ? `Обновлено: ${formatTime(tokenInfo && tokenInfo.fetchedAt)}` : 'Токен ещё не получен';
+        el.innerHTML = `\n          <div>\n            <div class="service-name">${ms.name || ms.baseUrl}</div>\n            <div class="service-time">${updatedText}</div>\n          </div>\n          <div class="badge ${tokenInfo ? '' : 'inactive'}">${tokenInfo ? 'TOKEN' : '—'}</div>\n        `;
         servicesDiv.appendChild(el);
       });
     });
@@ -26,11 +27,15 @@ function manualRefresh() {
   const status = document.getElementById('status');
   const icon = document.getElementById('refreshIcon');
   const text = document.getElementById('refreshText');
-  icon.style.display = 'inline-block'; text.textContent = '...'; status.className = 'status-bar'; status.innerHTML = '<span class="dot"></span> Обновление токена';
+  icon.style.display = 'inline-block'; text.textContent = '...'; status.className = 'status-bar'; status.innerHTML = '';
   chrome.runtime.sendMessage({ type: 'MANUAL_REFRESH' }, resp => {
-    if (resp && resp.ok) { status.className = 'status-bar success'; status.innerHTML = '<span class="dot"></span> Токен обновлён'; setTimeout(() => { status.innerHTML=''; }, 1800); loadData(); }
+    if (resp && resp.ok) {
+      // Отдельный глобальный статус не показываем, просто перерисовываем данные
+      status.className = 'status-bar'; status.innerHTML = '';
+      loadData();
+    }
     else { status.className = 'status-bar error'; status.innerHTML = '<span class="dot"></span> Ошибка обновления'; setTimeout(() => { status.innerHTML=''; }, 2500); }
-    icon.style.display = 'none'; text.textContent = 'Обновить';
+    icon.style.display = 'none'; text.textContent = 'Обновить токен';
   });
 }
 function loadUpdateInfo() {
@@ -52,7 +57,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadData();
   loadUpdateInfo();
   document.getElementById('refreshBtn').addEventListener('click', manualRefresh);
-  document.getElementById('optionsBtn').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  document.getElementById('optionsIconBtn').addEventListener('click', () => chrome.runtime.openOptionsPage());
   const checkBtn = document.getElementById('checkUpdateBtn');
   const originalHTML = checkBtn.innerHTML;
   checkBtn.addEventListener('click', () => {
