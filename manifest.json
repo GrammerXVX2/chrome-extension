@@ -19,6 +19,16 @@
   ],
   "action": {
     "default_title": "Swagger Token",
-    "default_popup": "src/ui/popup.html"
+    "default_popup": "src/ui/popup.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
   }
 }
